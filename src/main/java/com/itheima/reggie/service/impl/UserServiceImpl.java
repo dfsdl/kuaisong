@@ -8,15 +8,23 @@ import com.itheima.reggie.entity.User;
 import com.itheima.reggie.mapper.UserMapper;
 import com.itheima.reggie.service.UserService;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.data.redis.core.RedisTemplate;
 import org.springframework.stereotype.Service;
 
 import javax.servlet.http.HttpServletRequest;
 import java.util.Map;
 import java.util.Random;
+import java.util.concurrent.TimeUnit;
 
 @Service
 @Slf4j
 public class UserServiceImpl extends ServiceImpl<UserMapper, User> implements UserService {
+    @Autowired
+    private RedisTemplate redisTemplate;
+
+
+    //登录
     @Override
     public R<String> login(Map map, HttpServletRequest request) {
         //获取手机号
@@ -24,7 +32,9 @@ public class UserServiceImpl extends ServiceImpl<UserMapper, User> implements Us
         //获取验证码
         String code = (String)map.get("code");
         //获取session中的验证码
-        String rcode =(String) request.getSession().getAttribute(phone);
+        //String rcode =(String) request.getSession().getAttribute(phone);
+        //从redis中获取验证码
+        String rcode = (String)redisTemplate.opsForValue().get(phone);
         //判断是否是新用户
         LambdaQueryWrapper<User> queryWrapper = new LambdaQueryWrapper<>();
         queryWrapper.eq(User::getPhone,phone);
@@ -36,11 +46,15 @@ public class UserServiceImpl extends ServiceImpl<UserMapper, User> implements Us
             save(newUser);
             if (code.equals(rcode)) {
                 request.getSession().setAttribute("user", newUser.getId());
+                //删除缓存
+                redisTemplate.delete(phone);
                 return R.success("登录成功");
             }
         }
         if (code.equals(rcode)) {
             request.getSession().setAttribute("user",one.getId() );
+            //删除缓存
+            redisTemplate.delete(phone);
             return R.success("登录成功");
         }
         return R.error("验证码错误");
@@ -58,7 +72,9 @@ public class UserServiceImpl extends ServiceImpl<UserMapper, User> implements Us
             String codeStr = String.valueOf(code);
             log.info("code:{}", codeStr);
             //将验证码保存到session中
-            request.getSession().setAttribute(phone, codeStr);
+            //request.getSession().setAttribute(phone, codeStr);
+            //将生成的验证码缓存到redis中，并设置有效期五分钟
+            redisTemplate.opsForValue().set(phone, codeStr,5, TimeUnit.MINUTES);
             return R.success("验证码发送成功");
         }
         return R.error("验证码发送失败");

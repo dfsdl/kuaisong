@@ -3,81 +3,83 @@ package com.itheima.reggie.filter;
 import com.alibaba.fastjson.JSON;
 import com.itheima.reggie.common.BaseContext;
 import com.itheima.reggie.common.R;
-import lombok.extern.slf4j.Slf4j;
-import org.springframework.util.AntPathMatcher;
-
 import javax.servlet.*;
 import javax.servlet.annotation.WebFilter;
 import javax.servlet.http.HttpServletRequest;
 import javax.servlet.http.HttpServletResponse;
-import java.io.IOException;
+import lombok.extern.slf4j.Slf4j;
+import org.springframework.boot.web.servlet.ServletComponentScan;
+import org.springframework.util.AntPathMatcher;
 
-//检查用户是否已经完成登录
+import java.io.IOException;
+//检查用户是否完成登录
 @Slf4j
-@WebFilter(filterName = "loginCheckFilter",urlPatterns = "/*")
+@WebFilter(filterName = "LoginnCheckFilter",urlPatterns = "/*")
 public class LoginCheckFilter implements Filter {
-    //路径匹配器
-    public static final AntPathMatcher PATH_MATCHER = new AntPathMatcher();
+    //路径匹配器，支持通配符
+    public static  final AntPathMatcher antPathMatcher = new AntPathMatcher();
 
     @Override
     public void doFilter(ServletRequest servletRequest, ServletResponse servletResponse, FilterChain filterChain) throws IOException, ServletException {
-        HttpServletRequest request = (HttpServletRequest) servletRequest;
         HttpServletResponse response = (HttpServletResponse) servletResponse;
-        //获取请求uri
+        HttpServletRequest request = (HttpServletRequest) servletRequest;
+        //获取本次请求url
         String requestURI = request.getRequestURI();
+        log.info("拦截到请求：{}",requestURI);
         //定义不需要处理的请求路径
         String[] urls = new String[]{
                 "/employee/login",
                 "/employee/logout",
                 "/backend/**",
-                "/frontend/**",
+                "/front/**",
                 "/common/**",
-                "/user/sendMsg",
-                "/user/login"
+                "/user/sendMsg",//移动端发送短信
+                "/user/login"//移动端登录
+
         };
-        //判断是否需要处理
-        if (check(urls,requestURI)) {
-            log.info("本次请求不需要处理");
-            filterChain.doFilter(request,response);
+        //判断本次请求是否需要处理
+        boolean check = check(requestURI, urls);
+        if (check) {
+            log.info("本次请求：{}不需要处理",requestURI);
+            filterChain.doFilter(request, response);
             return;
         }
+
         //判断登录状态
-        Object employee = request.getSession().getAttribute("employee");
-        if (employee != null) {
-            long empId = (long) request.getSession().getAttribute("employee");
-            //已登录
-            log.info("用户已登录，id：{}",empId);
-            BaseContext.setCurrentId(empId);
-            filterChain.doFilter(request,response);
+        if(request.getSession().getAttribute("employee")!=null){
+            log.info("用户已登录,用户id：{}",request.getSession().getId());
+            Long empid = (Long)request.getSession().getAttribute("employee");
+            BaseContext.setCurrentId(empid);
+            filterChain.doFilter(request, response);
             return;
         }
         //判断移动端登录状态
-        Object user = request.getSession().getAttribute("user");
-        if (user != null) {
-            long userId = (long) request.getSession().getAttribute("user");
-            //已登录
-            log.info("用户已登录，id：{}",userId);
+        if(request.getSession().getAttribute("user")!=null){
+            log.info("用户已登录,用户id：{}",request.getSession().getId());
+            Long userId = (Long)request.getSession().getAttribute("user");
             BaseContext.setCurrentId(userId);
-            filterChain.doFilter(request,response);
+            filterChain.doFilter(request, response);
             return;
         }
-        /// 未登录，通过输出流向客户端响应数据
-        log.info("用户未登录");
-        response.getWriter().write(JSON.toJSONString(R.error("NOTLOGIN")));
-        return;
 
+
+
+        log.info("用户未登录");
+        //如果未登录，通过输出流方式项向客户端页面响应数据
+        response.getWriter().write(JSON.toJSONString(R.error("NOTLOGIN")));
+        return ;
 
     }
 
-
     //路径匹配
-    public boolean check(String[] urls,String requestURI){
+    public boolean check(String requestURI,String[] urls) {
         for (String url : urls) {
-            if (PATH_MATCHER.match(url, requestURI)) {
+            if (antPathMatcher.match(url, requestURI)) {
                 return true;
             }
         }
         return false;
 
     }
+
 }

@@ -89,8 +89,8 @@ public class DishController {
 //        return R.success(list);
 //    }
 @GetMapping("/list")
-public R<List<DishDto>> list(@RequestParam Long categoryId) {
-   return dishService.listWithFlavors(categoryId);
+public R<List<DishDto>> list(Dish dish) {
+    return dishService.listWithFlavors(dish);
 
 
 }
